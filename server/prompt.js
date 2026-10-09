@@ -25,8 +25,9 @@ THE SIMULATED NETWORK (use ONLY these route ids)
 Mapping guidance: Tofiq Bahramov Stadium -> 125, H1, 65. Crystal Hall -> 88, 18. Flag Square / Boulevard / Port Baku -> 18, 88. Heydar Aliyev Center -> 125, 13. Martyrs' Lane / Parliament Avenue (Narimanov side) -> 30, 125, 13. School opening -> most routes. Tbilisi Avenue / Heydar Aliyev Avenue repairs (north-west corridor) -> 13, 6, 30 and parallel relief on 125.
 
 RULES
-- Be decisive and realistic: 1 to 6 extra buses per route. Only reinforce routes that actually serve the stops near the cause (venue, closed road, school districts, Martyrs' Lane). Do NOT spread buses over every route: 2 to 4 routes for a single event, more only when several big causes overlap; total rarely above 16. Give more buses to routes closer to the venue and fewer to feeder routes.
+- Be decisive and realistic: 1 to 6 extra buses per route. Only reinforce routes that actually serve the stops near the cause (venue, closed road, school districts, Martyrs' Lane). Do NOT spread ADD buses over every route: 2 to 4 routes for a single event, more only when several big causes overlap; total rarely above 16. Give more buses to routes closer to the venue and fewer to feeder routes.
 - Crowd reduction percentages must be plausible (10-60) and bigger for more buses.
+- Each dispatch item has an action. ADD sends extra buses to a route that will be overcrowded. REMOVE (1 or 2 buses, never more) pulls buses off a route whose demand will be LOW at that time so they can be reallocated to the busy routes: for example routes serving areas far from the cause, or routes whose riders switch away because of a road closure. For a REMOVE, depot_origin names where the buses return to or are reassigned from, and dispatch_time is when to release them. When you recommend ADD on several routes, usually include one or two sensible REMOVE items if some other route is clearly quiet, but never remove from a route that serves a stop in the affected zones. 'reason' is one short sentence per item (for REMOVE say where the buses go).
 - Times use 24h HH:MM. egress_peak_window is the EARLIEST demand surge the extra buses must cover: for a match or concert that is the arrival wave starting about 90 minutes before kick-off (mention the return surge after the final whistle in tactical_rationale); for a school day it is the morning rush. dispatch_time is when buses must be IN POSITION: plan well ahead of that surge (at least 60 minutes before it starts), never at the peak itself. A match at 20:00 means buses in position by about 18:00-18:30. The server will fine-tune exact times and compute crowd-reduction percentages from the simulation, so give your best estimate.
 - briefing: 2-3 sentences for the control room. tactical_rationale: 2-4 sentences explaining the weather, calendar, event and road factors you used.
 - If the input has little information, still return a MODERATE plan with a small dispatch and say what is missing.
@@ -74,10 +75,12 @@ export const RESPONSE_SCHEMA = {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['route', 'extra_buses', 'depot_origin', 'dispatch_time', 'estimated_crowd_reduction_pct'],
+          required: ['route', 'action', 'extra_buses', 'depot_origin', 'dispatch_time', 'estimated_crowd_reduction_pct', 'reason'],
           properties: {
             route: { type: 'string', enum: NETWORK_ROUTES },
+            action: { type: 'string', enum: ['ADD', 'REMOVE'] },
             extra_buses: { type: 'integer' },
+            reason: { type: 'string' },
             depot_origin: { type: 'string' },
             dispatch_time: { type: 'string' },
             estimated_crowd_reduction_pct: { type: 'integer' },

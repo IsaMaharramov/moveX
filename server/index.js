@@ -40,7 +40,7 @@ app.post('/api/passenger-chat', async (req, res) => {
   if (!clean.length || clean[clean.length - 1].role !== 'user') return res.status(400).json({ error: 'Send a message first.' })
   if (![lat, lon, simMinute].every(Number.isFinite)) return res.status(400).json({ error: 'Missing location.' })
   const safeExtras = {}
-  for (const [k, v] of Object.entries(extras && typeof extras === 'object' ? extras : {})) if (Number.isFinite(v) && v >= 0 && v <= 30) safeExtras[k.slice(0, 4)] = v
+  for (const [k, v] of Object.entries(extras && typeof extras === 'object' ? extras : {})) if (Number.isFinite(v) && v >= -2 && v <= 30) safeExtras[k.slice(0, 4)] = v
   try {
     const geo = validGeometry(geometry)
     return res.json(await answer({ messages: clean, origin: { lat, lon }, simMinute, extras: safeExtras, geometry: geo }))
@@ -80,7 +80,9 @@ function sanitize(plan) {
     seen.add(r.route)
     dispatch.push({
       ...r,
-      extra_buses: Math.min(6, Math.max(1, Math.round(r.extra_buses))),
+      action: r.action === 'REMOVE' ? 'REMOVE' : 'ADD',
+      reason: typeof r.reason === 'string' ? r.reason : '',
+      extra_buses: Math.min(r.action === 'REMOVE' ? 2 : 6, Math.max(1, Math.round(r.extra_buses))),
       estimated_crowd_reduction_pct: Math.min(80, Math.max(0, Math.round(r.estimated_crowd_reduction_pct))),
     })
   }

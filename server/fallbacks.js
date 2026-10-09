@@ -1,6 +1,6 @@
 // Offline safety net for the four demo presets, used only if the OpenAI call fails.
 // The API response is flagged source: "offline-fallback" so the UI is honest about it.
-const d = (route, extra_buses, depot_origin, dispatch_time, estimated_crowd_reduction_pct) => ({ route, extra_buses, depot_origin, dispatch_time, estimated_crowd_reduction_pct })
+const d = (route, extra_buses, depot_origin, dispatch_time, estimated_crowd_reduction_pct, action = 'ADD', reason = '') => ({ route, action, extra_buses, depot_origin, dispatch_time, estimated_crowd_reduction_pct, reason })
 
 export const FALLBACKS = {
   match_rain: {
@@ -12,7 +12,7 @@ export const FALLBACKS = {
     affected_zones: ['Ganjlik', 'Stadium (Neftchilar)', '28 May'],
     briefing: 'Evening league match with about 29,000 expected and heavy rain forecast. Expect a severe arrival wave from 18:30 and a sharp egress peak after full-time.',
     tactical_rationale: 'Rain removes walking as an option for fans and commuters at the same time. Routes 125, H1 and 65 all pass the stadium, so they must be reinforced before the arrival wave, not after delays start.',
-    recommended_dispatch: [d('125', 4, 'Korogllu Depot', '18:40', 38), d('H1', 3, 'Dernegul Depot', '18:45', 32), d('65', 2, 'Korogllu Depot', '18:50', 24)],
+    recommended_dispatch: [d('125', 4, 'Korogllu Depot', '18:40', 38), d('H1', 3, 'Dernegul Depot', '18:45', 32), d('65', 2, 'Korogllu Depot', '18:50', 24), d('6', 1, 'Dernegul Depot', '17:30', 0, 'REMOVE', 'Quiet route in the west tonight; reassign to routes 125 and H1.')],
   },
   school_rush: {
     scenario_title: 'September 15 school opening: city-wide rush',

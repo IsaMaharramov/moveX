@@ -22,7 +22,7 @@ const ago = (iso) => {
 export default function AutoIntelPanel({ sim, intel }) {
   const { data, loading, error, scanNow } = intel
   const [autoDeploy, setAutoDeploy] = useState(false)
-  const [deployedId, setDeployedId] = useState(null)
+  const [applied, setApplied] = useState({ scanId: null, routes: [] })
   const [showSignals, setShowSignals] = useState(false)
   const [, force] = useState(0)
   const lastAutoId = useRef(null)
@@ -34,19 +34,20 @@ export default function AutoIntelPanel({ sim, intel }) {
   }, [])
 
   const plan = data?.plan
-  const deploy = useCallback(() => {
-    if (!data?.plan) return
-    sim.deployPlan(data.plan.recommended_dispatch, data.plan.scenario_title)
-    setDeployedId(data.scanId)
+  const done = new Set(applied.scanId === data?.scanId ? applied.routes : [])
+  const apply = useCallback((items) => {
+    if (!data?.plan || !items.length) return
+    sim.deployPlan(items, data.plan.scenario_title)
+    setApplied((a) => ({ scanId: data.scanId, routes: [...(a.scanId === data.scanId ? a.routes : []), ...items.map((i) => i.route)] }))
   }, [data, sim])
 
-  // Autopilot: deploy new plans without asking, once per scan
+  // Autopilot: apply every item of a new plan without asking, once per scan
   useEffect(() => {
-    if (autoDeploy && data?.plan?.recommended_dispatch.length && lastAutoId.current !== data.scanId && deployedId !== data.scanId) {
+    if (autoDeploy && data?.plan?.recommended_dispatch.length && lastAutoId.current !== data.scanId) {
       lastAutoId.current = data.scanId
-      deploy()
+      apply(data.plan.recommended_dispatch.map((r) => ({ route: r.route, delta: r.action === 'REMOVE' ? -r.extra_buses : r.extra_buses })))
     }
-  }, [autoDeploy, data, deployedId, deploy])
+  }, [autoDeploy, data, apply])
 
   const used = data?.signals.filter((s) => s.used) ?? []
   const shown = showSignals ? data?.signals ?? [] : used
@@ -126,8 +127,9 @@ export default function AutoIntelPanel({ sim, intel }) {
         <div className="mt-3">
           <PlanCard
             plan={plan}
-            deployed={deployedId === data.scanId}
-            onDeploy={deploy}
+            key={data.scanId}
+            done={done}
+            onApply={apply}
             footer={`Autonomous analysis by ${data.model}${data.cached ? ' · no new signals since last analysis' : ''}`}
           />
         </div>

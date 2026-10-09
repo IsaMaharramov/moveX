@@ -26,7 +26,7 @@ export const stops = [
   { id: 'ganjlik', name: 'Ganjlik Metro', lat: 40.4004, lon: 49.8508, pop: 0.9 },
   { id: 'stadium', name: 'Stadium (Neftchilar)', lat: 40.3948, lon: 49.8545, pop: 0.5 },
   { id: 'azadliq', name: 'Azadliq Avenue', lat: 40.399, lon: 49.8605, pop: 0.5 },
-  { id: 'narimanov', name: 'Narimanov Metro', lat: 40.4047, lon: 49.8719, pop: 0.8 },
+  { id: 'narimanov', name: 'Narimanov Metro', lat: 40.4047, lon: 49.8719, pop: 0.8, am: 2.6 },
   { id: 'may28', name: '28 May Metro', lat: 40.3799, lon: 49.8483, pop: 1 },
   { id: 'sahil', name: 'Sahil Metro', lat: 40.3725, lon: 49.8447, pop: 0.8 },
   { id: 'nizami', name: 'Nizami Metro', lat: 40.3797, lon: 49.83, pop: 0.7 },
@@ -35,7 +35,7 @@ export const stops = [
   { id: 'heydar', name: 'Heydar Aliyev Center', lat: 40.3965, lon: 49.8665, pop: 0.3 },
   { id: 'icheri', name: 'Icherisheher', lat: 40.3661, lon: 49.835, pop: 0.7 },
   { id: 'khatai', name: 'Khatai Metro', lat: 40.3826, lon: 49.8715, pop: 0.6 },
-  { id: 'yanvar20', name: '20 Yanvar Metro', lat: 40.4048, lon: 49.8085, pop: 0.7 },
+  { id: 'yanvar20', name: '20 Yanvar Metro', lat: 40.4048, lon: 49.8085, pop: 0.7, am: 2.4 },
   { id: 'memar', name: 'Memar Ajami', lat: 40.411, lon: 49.814, pop: 0.5 },
   { id: 'genclik', name: 'Genclik Mall', lat: 40.3999, lon: 49.8452, pop: 0.6 },
   { id: 'fountain', name: 'Fountain Square', lat: 40.3727, lon: 49.8352, pop: 0.8 },
@@ -159,7 +159,8 @@ export const servingRoutes = (stopId) => servingCache[stopId]
 
 export function stopRawDelay(stop, t) {
   const rush = Math.exp(-(((t - 18 * 60) / 70) ** 2))
-  let d = 0.6 + rush * 2.2 * stop.pop + Math.sin(t / 9 + stop.lat * 900) * 0.5 + 0.5
+  const morning = Math.exp(-(((t - 8.5 * 60) / 55) ** 2)) // 08:30 commute and school rush
+  let d = 0.6 + rush * 2.2 * stop.pop + morning * 4.8 * stop.pop * (stop.am ?? 1) + Math.sin(t / 9 + stop.lat * 900) * 0.5 + 0.5
   for (const ev of events) {
     const dist = haversine(stop, ev)
     d += (eventLoad(ev, t) * ev.attendance * 0.12 * Math.exp(-dist / 450)) / 220
@@ -179,7 +180,7 @@ export function stopStates(t, extras) {
     const { raw, delay } = stopDelay(stop, t, extras)
     const serving = servingRoutes(stop.id)
     const extraBuses = serving.reduce((s, r) => s + extraCount(extras, r), 0)
-    const headway = BASE_HEADWAY * BASE_BUSES / (BASE_BUSES + extraBuses / Math.max(1, serving.length) * 2)
+    const headway = BASE_HEADWAY * BASE_BUSES / Math.max(1.2, BASE_BUSES + extraBuses / Math.max(1, serving.length) * 2)
     return {
       stop, raw, delay, level: getCrowdLevel(delay), serving,
       waiting: Math.round(delay * 26 + 6),
@@ -227,9 +228,10 @@ const hash = (str) => [...str].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997
 
 // Buses on a route: base fleet evenly spread, extra buses slotted in between. Shared with the timetable.
 export function busUnits(L, extra) {
+  const base = Math.max(1, BASE_BUSES + Math.min(0, extra)) // negative extra = buses pulled off the route
   return [
-    ...Array.from({ length: BASE_BUSES }, (_, i) => ({ i, offset: (i * 2 * L) / BASE_BUSES, extra: false })),
-    ...Array.from({ length: extra }, (_, j) => ({ i: BASE_BUSES + j, offset: 2 * L * ((0.17 + 0.29 * j) % 1), extra: true })),
+    ...Array.from({ length: base }, (_, i) => ({ i, offset: (i * 2 * L) / base, extra: false })),
+    ...Array.from({ length: Math.max(0, extra) }, (_, j) => ({ i: BASE_BUSES + j, offset: 2 * L * ((0.17 + 0.29 * j) % 1), extra: true })),
   ]
 }
 

@@ -1,16 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, Polyline } from 'react-leaflet'
-import { MapPin, Footprints, AlertTriangle, CheckCircle2, Navigation, Clock, Bus } from 'lucide-react'
+import { MapPin, Footprints, AlertTriangle, CheckCircle2, Navigation, Clock, Bus, Sparkles, CalendarClock } from 'lucide-react'
 import { HeatCircles, StopMarkers, BusMarkers, FlyTo, ClickToSet, PinMarker, EventMarkers, RouteLines, BaseTiles, AiRings, PoiMarkers, TripLayer, FitTo } from './MapLayers'
 import CrowdBadge from './CrowdBadge'
 import AiAlertBanner from './AiAlertBanner'
 import TripChat from './TripChat'
+import RoutinePanel from './RoutinePanel'
 import { buildGeometry } from '../data/timetable'
 import { walkMinutes, haversine, routes, computeStopAlong, stopById } from '../data/mockEngine'
 
 const routeColor = Object.fromEntries(routes.map((r) => [r.id, r.color]))
 
-export default function PassengerView({ sim, buses, paths, focus, intel }) {
+export default function PassengerView({ sim, buses, paths, focus, intel, routines, tab, setTab }) {
   const { states, t } = sim
   const [pos, setPos] = useState([40.3968, 49.8532])
   const [target, setTarget] = useState(null)
@@ -39,11 +40,31 @@ export default function PassengerView({ sim, buses, paths, focus, intel }) {
   const alt = best && current && best.stop.id !== current.stop.id && best.total < current.total ? best : null
   const crowded = current && current.level !== 'Low'
 
+  // a reminder was acted on: put the pin at the trip start and draw the chosen route
+  useEffect(() => {
+    if (!routines?.focus) return
+    setPos([routines.focus.from.lat, routines.focus.from.lon])
+    setTrip(routines.focus.trip)
+    setTtRoute(null)
+    setTripToken((n) => n + 1)
+  }, [routines?.focus])
+
   const pick = (p) => { setPos(p); setNavigating(false); setTrip(null); setTtRoute(null) }
 
   return (
     <div className="grid h-[calc(100vh-64px)] min-h-[600px] grid-cols-1 lg:grid-cols-[430px_1fr]">
-      <aside className="min-h-0 space-y-4 overflow-y-auto bg-slate-50 p-4">
+      <aside className="flex min-h-0 flex-col bg-slate-50">
+        <div className="flex gap-1 border-b border-slate-200 bg-white p-2">
+          {[['plan', 'Assistant', Sparkles], ['routine', 'My routine', CalendarClock]].map(([id, label, Icon]) => (
+            <button key={id} onClick={() => setTab(id)} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${tab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+              <Icon className="h-4 w-4" />{label}
+              {id === 'routine' && routines.notes.length > 0 && <span className="rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">{routines.notes.length}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        {tab === 'routine' ? <RoutinePanel sim={sim} routines={routines} pos={pos} /> : (
+        <>
         <AiAlertBanner plan={intel?.data?.plan} />
 
         <TripChat sim={sim} pos={pos} onTrip={showTrip} geometry={geometry} />
@@ -123,6 +144,9 @@ export default function PassengerView({ sim, buses, paths, focus, intel }) {
             </section>
           </>
         )}
+        </>
+        )}
+        </div>
       </aside>
 
       <div className="relative min-h-[420px]">

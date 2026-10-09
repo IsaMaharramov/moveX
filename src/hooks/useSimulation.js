@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { START_T, DAY_START, DAY_END, stopStates, toClock } from '../data/mockEngine'
+import { START_T, DAY_START, DAY_END, BASE_BUSES, stopStates, toClock } from '../data/mockEngine'
 
 const TICK_MS = 200
 
@@ -7,6 +7,7 @@ export function useSimulation() {
   const [t, setT] = useState(START_T)
   const [speed, setSpeed] = useState(1)
   const [playing, setPlaying] = useState(true)
+  const [day, setDay] = useState(() => (new Date().getDay() + 6) % 7) // 0 = Monday
   const [extras, setExtras] = useState({})
   const [log, setLog] = useState([])
   const [toast, setToast] = useState(null)
@@ -58,17 +59,21 @@ export function useSimulation() {
     pushToast(text)
   }, [t, pushToast])
 
-  // Deploy an AI plan: [{ route, extra_buses }] -> extra buses on the simulated fleet.
+  // Apply plan items: [{ route, delta }] where delta > 0 adds buses and delta < 0 pulls buses off (min 1 bus stays).
   const deployPlan = useCallback((items, label) => {
     setExtras((e) => {
       const next = { ...e }
-      items.forEach((i) => { next[i.route] = (next[i.route] || 0) + i.extra_buses })
+      items.forEach((i) => { next[i.route] = Math.max(-(BASE_BUSES - 1), (next[i.route] || 0) + i.delta) })
       return next
     })
-    const total = items.reduce((a, i) => a + i.extra_buses, 0)
-    const routesText = items.map((i) => i.route).join(items.length === 2 ? ' & ' : ', ')
-    const text = `+${total} Buses Injected into Route${items.length > 1 ? 's' : ''} ${routesText}`
-    setLog((l) => [{ id: `ai-${Date.now()}`, kind: 'dispatch', text: `AI plan deployed: ${label}. ${text}`, t }, ...l].slice(0, 40))
+    const added = items.filter((i) => i.delta > 0)
+    const pulled = items.filter((i) => i.delta < 0)
+    const list = (arr) => arr.map((i) => i.route).join(arr.length === 2 ? ' & ' : ', ')
+    const parts = []
+    if (added.length) parts.push(`+${added.reduce((a, i) => a + i.delta, 0)} Buses Injected into Route${added.length > 1 ? 's' : ''} ${list(added)}`)
+    if (pulled.length) parts.push(`${-pulled.reduce((a, i) => a + i.delta, 0)} Bus${pulled.length > 1 || pulled[0].delta < -1 ? 'es' : ''} Pulled from Route${pulled.length > 1 ? 's' : ''} ${list(pulled)}`)
+    const text = parts.join(' · ')
+    setLog((l) => [{ id: `ai-${Date.now()}`, kind: 'dispatch', text: `AI plan applied: ${label}. ${text}`, t }, ...l].slice(0, 40))
     pushToast(text)
   }, [t, pushToast])
 
@@ -85,5 +90,5 @@ export function useSimulation() {
 
   const jump = useCallback((minutes) => setT(minutes), [])
 
-  return { t, clock: toClock(t), speed, setSpeed, playing, setPlaying, jump, reset, extras, dispatch, deployPlan, recall, states, log, toast }
+  return { t, clock: toClock(t), speed, setSpeed, playing, setPlaying, jump, reset, day, setDay, extras, dispatch, deployPlan, recall, states, log, toast }
 }

@@ -68,7 +68,7 @@ export function planTrip(origin, dest, states) {
   const nearest = ranked.filter((o) => o.isNearestStop).sort((a, b) => a.score - b.score)[0] ?? null
   const walkDist = haversine(origin, dest)
   const walkOnlyMin = walkDist <= 1500 ? walkMinutes(origin, dest) : null
-  return { options: top, best: top[0] ?? null, nearestStopOption: nearest, walkOnlyMin, nearestStopId }
+  return { options: top, all: ranked, best: top[0] ?? null, nearestStopOption: nearest, walkOnlyMin, nearestStopId }
 }
 
 export function findPlace(text, placeList) {

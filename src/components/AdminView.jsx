@@ -38,11 +38,12 @@ export default function AdminView({ sim, paths, buses, focus, intel, tab, setTab
     const severe = states.filter((s) => s.level === 'Severe')
     const waiting = states.reduce((s, x) => s + x.waiting, 0)
     const saved = states.reduce((s, x) => s + (x.raw - x.delay), 0) / states.length
-    const extraBuses = Object.values(extras).reduce((a, b) => a + b, 0)
+    const extraBuses = Object.values(extras).filter((v) => v > 0).reduce((a, b) => a + b, 0)
+    const pulledBuses = -Object.values(extras).filter((v) => v < 0).reduce((a, b) => a + b, 0)
     // passenger-minutes saved per wait cycle, and severe stops avoided thanks to extra buses
     const passengerMin = Math.round(states.reduce((s, x) => s + (x.raw - x.delay) * x.waiting, 0))
     const avoided = states.filter((s) => s.raw >= 10 && s.delay < 10).length
-    return { avg, severe, waiting, saved, extraBuses, passengerMin, avoided }
+    return { avg, severe, waiting, saved, extraBuses, pulledBuses, passengerMin, avoided }
   }, [states, extras])
 
   const locate = (ev) => setTarget({ pos: [ev.lat, ev.lon], zoom: 15, n: Math.random() })
@@ -59,7 +60,7 @@ export default function AdminView({ sim, paths, buses, focus, intel, tab, setTab
     <div className="grid h-[calc(100vh-64px)] min-h-[600px] grid-cols-1 lg:grid-cols-[1fr_450px]">
       <div className="flex min-h-0 flex-col">
         <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-5">
-          <Kpi icon={Bus} label="Buses on road" value={routes.length * BASE_BUSES + kpi.extraBuses} sub={`${kpi.extraBuses} extra dispatched`} />
+          <Kpi icon={Bus} label="Buses on road" value={routes.length * BASE_BUSES + kpi.extraBuses - kpi.pulledBuses} sub={`+${kpi.extraBuses} added${kpi.pulledBuses ? ` · −${kpi.pulledBuses} pulled` : ''}`} />
           <Kpi icon={Gauge} label="Avg delay" value={`${kpi.avg.toFixed(1)}m`} sub="across all stops" tone={kpi.avg >= 5 ? 'text-amber-400' : 'text-emerald-400'} />
           <Kpi icon={Siren} label="Severe stops" value={kpi.severe.length} sub="need action" tone={kpi.severe.length ? 'text-red-400' : 'text-emerald-400'} />
           <Kpi icon={Users} label="Est. waiting" value={kpi.waiting.toLocaleString()} sub="passengers at stops" />

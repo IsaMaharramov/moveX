@@ -27,7 +27,9 @@ function clampPlan(plan) {
     seen.add(r.route)
     dispatch.push({
       ...r,
-      extra_buses: Math.min(6, Math.max(1, Math.round(r.extra_buses))),
+      action: r.action === 'REMOVE' ? 'REMOVE' : 'ADD',
+      reason: typeof r.reason === 'string' ? r.reason : '',
+      extra_buses: Math.min(r.action === 'REMOVE' ? 2 : 6, Math.max(1, Math.round(r.extra_buses))),
       estimated_crowd_reduction_pct: Math.min(80, Math.max(0, Math.round(r.estimated_crowd_reduction_pct))),
     })
   }
