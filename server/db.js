@@ -31,7 +31,7 @@ export function saveProfile(userId, data, updatedAt) {
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '')
 const num = (v) => (Number.isFinite(v) ? v : 0)
 const times = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {})
-  .filter(([d, t]) => /^[0-6]$/.test(d) && /^\d{1,2}:\d{2}$/.test(t)).map(([d, t]) => [d, t]))
+  .filter(([d, t]) => /^[0-6]$/.test(d) && /^([01]?\d|2[0-3]):[0-5]\d$/.test(t)).map(([d, t]) => [d, t]))
 
 // never trust the client: rebuild the document from known fields and sane limits
 export function sanitizeStore(input) {

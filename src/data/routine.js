@@ -7,7 +7,7 @@ export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 export const ALERT_LEAD_MIN = 30
 const KEY = 'movex-routine-v1'
 
-export const toMinutes = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? ''); return m ? +m[1] * 60 + +m[2] : null }
+export const toMinutes = (hhmm) => { const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(hhmm ?? ''); return m ? +m[1] * 60 + +m[2] : null }
 
 export function loadStore() {
   try {

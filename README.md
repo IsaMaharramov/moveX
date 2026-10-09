@@ -134,3 +134,13 @@ Free-tier notes: the service sleeps after about 15 minutes without visitors, and
 ## Team
 
 Built for a hackathon by the MoveX team.
+
+## Testing
+
+```bash
+npm test          # 26 automated tests (logic + API), no key needed
+npm run test:ai   # live tests against the real AI model (needs OPENAI_API_KEY)
+npm run bench     # simulation benchmark: reactive dispatch vs MoveX
+```
+
+See [TESTING.md](TESTING.md) for what was tested, what broke and how it was fixed, and the comparison with today's way of working.

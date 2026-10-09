@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "dev:web": "vite",
     "dev:api": "node server/index.js",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "test": "node --no-warnings --test tests/logic.test.mjs tests/api.test.mjs",
+    "test:ai": "node --no-warnings --test tests/ai.test.mjs",
+    "bench": "node --no-warnings tests/bench.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",

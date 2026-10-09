@@ -38,9 +38,9 @@ export function planTrip(origin, dest, states) {
           options.push({ ...base, routeId: rid, alightStopId: alight.id, alightStop: alight.name, waitMin: st.wait, rideMin, walkFromMin, totalMin, transfer: null,
             legs: [{ routeId: rid, fromStopId: board.id, toStopId: alight.id, rideMin }], score: totalMin + CROWD_PENALTY[st.level] })
         }
-        // one transfer
+        // one transfer (never ride out and come back to the same stop)
         for (const tid of route.stopIds) {
-          if (tid === board.id || tid === alight.id) continue
+          if (tid === board.id || tid === alight.id || alight.id === board.id) continue
           const ts = stateById[tid]
           for (const rid2 of ts.serving) {
             const r2 = routeById[rid2]

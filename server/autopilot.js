@@ -20,6 +20,8 @@ let scanCounter = 0
 export const getLatest = () => latest
 
 function clampPlan(plan) {
+  const now = bakuNow()
+  const nowMin = +now.time.slice(0, 2) * 60 + +now.time.slice(3)
   const seen = new Set()
   const dispatch = []
   for (const r of plan.recommended_dispatch ?? []) {
@@ -33,7 +35,7 @@ function clampPlan(plan) {
       estimated_crowd_reduction_pct: Math.min(80, Math.max(0, Math.round(r.estimated_crowd_reduction_pct))),
     })
   }
-  return refinePlan({ ...plan, recommended_dispatch: dispatch })
+  return refinePlan({ ...plan, recommended_dispatch: dispatch }, nowMin)
 }
 
 function feedText(now, weather, signals) {

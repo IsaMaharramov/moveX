@@ -53,6 +53,7 @@ export default function PlanCard({ plan, done, onApply, footer, offline }) {
                       <p className="mt-0.5 text-[11px] text-sky-300">
                         {remove ? <>Release at <b>{r.dispatch_time}</b></> : <>Leave depot <b>{r.dispatch_time}</b> → in position <b>{r.in_position_time ?? r.dispatch_time}</b></>}
                       </p>
+                      {r.late && <p className="mt-0.5 text-[11px] font-semibold text-red-400">Late start: the surge is close, send these buses now.</p>}
                       {r.reason && <p className="mt-0.5 text-[11px] italic text-slate-500">{r.reason}</p>}
                     </div>
                     <span title={remove ? 'Estimated extra crowding per bus on this route (simulation)' : "Share of this route's peak delay removed by the extra buses (simulation)"}

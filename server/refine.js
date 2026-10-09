@@ -49,7 +49,8 @@ function addReductions(plan, dispatch) {
   return [...dispatch, ...extra]
 }
 
-export function refinePlan(plan) {
+// nowMin: current Baku time in minutes, so a plan never tells buses to leave in the past
+export function refinePlan(plan, nowMin = null) {
   const peakStart = toMin(plan.egress_peak_window)
   const dispatch = plan.recommended_dispatch.map((r) => {
     const action = r.action === 'REMOVE' ? 'REMOVE' : 'ADD'
@@ -62,12 +63,19 @@ export function refinePlan(plan) {
       const latest = peakStart - LEAD_BEFORE_PEAK - (hash(r.route) % 4) * 10
       inPosition = inPosition == null ? latest : Math.min(inPosition, latest)
     }
-    const depart = inPosition == null ? null : inPosition - travel
+    let depart = inPosition == null ? null : inPosition - travel
+    let late = false
+    if (nowMin != null && peakStart != null && peakStart > nowMin && depart != null && depart < nowMin + 5) {
+      depart = nowMin + 5 // the surge is still ahead, so the best we can do is leave right away
+      inPosition = depart + travel
+      late = true
+    }
     return {
       ...base,
       in_position_time: inPosition == null ? r.dispatch_time : fmt(inPosition),
       dispatch_time: depart == null ? r.dispatch_time : fmt(depart), // time to leave the depot
       depot_travel_min: travel,
+      late,
     }
   })
   return { ...plan, recommended_dispatch: addReductions(plan, dispatch) }

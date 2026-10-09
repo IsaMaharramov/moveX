@@ -10,6 +10,8 @@ import { FALLBACKS } from './fallbacks.js'
 import { initChat, answer } from './chat.js'
 import { getProfile, saveProfile, sanitizeStore, USER_ID } from './db.js'
 import { refinePlan } from './refine.js'
+import { bakuNow } from './collectors.js'
+import { aiLimiter } from './limits.js'
 import { initAutopilot, scan, getLatest, startScheduler } from './autopilot.js'
 
 const PORT = process.env.PORT || 3001
@@ -19,7 +21,9 @@ const client = apiKey ? new OpenAI({ apiKey }) : null
 
 const app = express()
 app.use(cors({ origin: [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/] }))
+app.set('trust proxy', 1) // behind Render's proxy, req.ip must be the visitor, not the proxy
 app.use(express.json({ limit: '50kb' }))
+app.use(['/api/passenger-chat', '/api/predict-dispatch', '/api/auto-dispatch/scan'], aiLimiter)
 
 initAutopilot(apiKey)
 initChat(apiKey)
@@ -103,7 +107,8 @@ function sanitize(plan) {
       estimated_crowd_reduction_pct: Math.min(80, Math.max(0, Math.round(r.estimated_crowd_reduction_pct))),
     })
   }
-  return refinePlan({ ...plan, recommended_dispatch: dispatch })
+  const now = bakuNow()
+  return refinePlan({ ...plan, recommended_dispatch: dispatch }, +now.time.slice(0, 2) * 60 + +now.time.slice(3))
 }
 
 app.post('/api/predict-dispatch', async (req, res) => {
