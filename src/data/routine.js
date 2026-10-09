@@ -12,13 +12,27 @@ export const toMinutes = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?
 export function loadStore() {
   try {
     const raw = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem(KEY) || 'null') : null
-    if (raw && Array.isArray(raw.routines)) return { routines: raw.routines, history: raw.history ?? {} }
+    if (raw && Array.isArray(raw.routines)) return { routines: raw.routines, history: raw.history ?? {}, updatedAt: raw.updatedAt ?? 0 }
   } catch { /* ignore corrupt storage */ }
-  return { routines: [], history: {} }
+  return { routines: [], history: {}, updatedAt: 0 }
 }
 export function saveStore(store) {
   try { localStorage.setItem(KEY, JSON.stringify(store)) } catch { /* private mode */ }
 }
+
+// The sync code: a random id made once per browser. It is also the key of the copy saved on the server.
+const USER_KEY = 'movex-user-id'
+export function getUserId() {
+  try {
+    let id = localStorage.getItem(USER_KEY)
+    if (!id) {
+      id = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9-]/g, '')
+      localStorage.setItem(USER_KEY, id)
+    }
+    return id
+  } catch { return 'anonymous-device-0000' }
+}
+export function setUserId(id) { try { localStorage.setItem(USER_KEY, id) } catch { /* ignore */ } }
 
 // routine: { id, name, home: { lat, lon, name }, placeId, go: { [dayIdx]: 'HH:MM' }, back: { [dayIdx]: 'HH:MM' } }
 export function expandTrips(routines) {

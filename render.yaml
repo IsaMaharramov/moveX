@@ -1,0 +1,14 @@
+# Render Blueprint: one free web service that builds the site and runs the API + website together.
+services:
+  - type: web
+    name: movex-ayna
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: OPENAI_API_KEY
+        sync: false # you paste the key in the Render dashboard, it is never stored in git

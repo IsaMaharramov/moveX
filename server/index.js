@@ -1,10 +1,14 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import OpenAI from 'openai'
 import { SYSTEM_PROMPT, RESPONSE_SCHEMA, NETWORK_ROUTES } from './prompt.js'
 import { FALLBACKS } from './fallbacks.js'
 import { initChat, answer } from './chat.js'
+import { getProfile, saveProfile, sanitizeStore, USER_ID } from './db.js'
 import { refinePlan } from './refine.js'
 import { initAutopilot, scan, getLatest, startScheduler } from './autopilot.js'
 
@@ -19,6 +23,19 @@ app.use(express.json({ limit: '50kb' }))
 
 initAutopilot(apiKey)
 initChat(apiKey)
+
+// ---- Saved routines (SQLite file). The random user id acts as the key; the sync code is that id. ----
+app.get('/api/routines/:userId', (req, res) => {
+  if (!USER_ID.test(req.params.userId)) return res.status(400).json({ error: 'Bad sync code.' })
+  const p = getProfile(req.params.userId)
+  return res.json(p ? { found: true, ...p } : { found: false })
+})
+app.put('/api/routines/:userId', (req, res) => {
+  if (!USER_ID.test(req.params.userId)) return res.status(400).json({ error: 'Bad sync code.' })
+  const updatedAt = Number.isFinite(req.body?.updatedAt) ? Math.round(req.body.updatedAt) : Date.now()
+  saveProfile(req.params.userId, sanitizeStore(req.body?.data), updatedAt)
+  return res.json({ ok: true, updatedAt })
+})
 
 // ---- Passenger assistant: natural language -> live trip plan ----
 // Accept the browser's road-snapped route geometry so timetables match the animated buses.
@@ -118,6 +135,13 @@ app.post('/api/predict-dispatch', async (req, res) => {
     return fallback() ?? res.status(502).json({ error: 'The AI service is unavailable right now. Please try again.' })
   }
 })
+
+// Production: the same server also serves the built website (npm run build), so there is one public link.
+const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
+if (existsSync(join(dist, 'index.html'))) {
+  app.use(express.static(dist))
+  app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(join(dist, 'index.html')))
+}
 
 app.listen(PORT, () => {
   console.log(`MoveX API proxy on http://localhost:${PORT} (AI ${client ? 'ready' : 'NOT configured'})`)

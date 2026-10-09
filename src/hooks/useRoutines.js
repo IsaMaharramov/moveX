@@ -1,17 +1,68 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadStore, saveStore, expandTrips, evaluateTrip, optionKey, historyKey, ALERT_LEAD_MIN, DAYS } from '../data/routine'
+import { loadStore, saveStore, getUserId, setUserId, expandTrips, evaluateTrip, optionKey, historyKey, ALERT_LEAD_MIN, DAYS } from '../data/routine'
 import { planTrip } from '../data/planner'
 import { places, toClock } from '../data/mockEngine'
 
+const CODE_OK = /^[A-Za-z0-9-]{12,64}$/
+
 // Remembers the passenger's weekly routine and choices; raises an alert ALERT_LEAD_MIN before each trip.
+// Data lives in the browser (instant) AND in a server database keyed by the sync code, so a cleared
+// browser or a new device can get it back. Only the user changes or deletes it.
 export function useRoutines(sim) {
+  const [userId, setUser] = useState(getUserId)
   const [store, setStore] = useState(loadStore)
+  const [sync, setSync] = useState('loading') // loading | saved | saving | offline
+  const [syncError, setSyncError] = useState('')
   const [notes, setNotes] = useState([])
   const [focus, setFocus] = useState(null) // trip to draw on the passenger map
   const fired = useRef(new Set())
   const prevT = useRef(sim.t)
+  const ready = useRef(false) // server copy has been read at least once
+  const pushed = useRef(0) // updatedAt of the last copy known to be on the server
+  const storeRef = useRef(store)
+  useEffect(() => { storeRef.current = store })
 
-  useEffect(() => { saveStore(store) }, [store])
+  // every user change goes through here so updatedAt always reflects the newest edit
+  const mutate = useCallback((fn) => setStore((s) => ({ ...fn(s), updatedAt: Date.now() })), [])
+
+  // 1) read the server copy for this sync code
+  useEffect(() => {
+    let cancelled = false
+    ready.current = false
+    setSync('loading')
+    fetch(`/api/routines/${userId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return
+        const local = storeRef.current
+        if (j.found && (j.updatedAt > local.updatedAt || (local.routines.length === 0 && j.data.routines.length > 0))) {
+          setStore({ ...j.data, updatedAt: j.updatedAt }) // server copy is newer (or this browser is empty)
+          pushed.current = j.updatedAt
+        } else {
+          if (j.found) pushed.current = j.updatedAt
+          // this browser has data the server has not seen yet: push it now
+          if (local.routines.length > 0 && (!j.found || local.updatedAt >= j.updatedAt)) mutate((s) => s)
+        }
+        ready.current = true
+        setSync('saved')
+      })
+      .catch(() => { if (!cancelled) { ready.current = true; setSync('offline') } })
+    return () => { cancelled = true }
+  }, [userId, mutate])
+
+  // 2) save: browser immediately, server shortly after the last change
+  useEffect(() => {
+    saveStore(store)
+    if (!ready.current || store.updatedAt === 0 || store.updatedAt === pushed.current) return undefined
+    setSync('saving')
+    const id = setTimeout(() => {
+      fetch(`/api/routines/${userId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: { routines: store.routines, history: store.history }, updatedAt: store.updatedAt }) })
+        .then((r) => { if (!r.ok) throw new Error('save failed'); pushed.current = store.updatedAt; setSync('saved') })
+        .catch(() => setSync('offline'))
+    }, 500)
+    return () => clearTimeout(id)
+  }, [store, userId])
+
   const trips = useMemo(() => expandTrips(store.routines), [store.routines])
 
   // fire the pre-trip alert when the (simulated) clock enters the 30-minute window
@@ -31,8 +82,9 @@ export function useRoutines(sim) {
     }
   }, [sim.t, sim.day, sim.states, trips, store.history])
 
-  const addRoutine = useCallback((routine) => setStore((s) => ({ ...s, routines: [...s.routines, { ...routine, id: `r${Date.now()}` }] })), [])
-  const removeRoutine = useCallback((id) => setStore((s) => ({ routines: s.routines.filter((r) => r.id !== id), history: Object.fromEntries(Object.entries(s.history).filter(([k]) => !k.startsWith(`${id}|`))) })), [])
+  const addRoutine = useCallback((routine) => mutate((s) => ({ ...s, routines: [...s.routines, { ...routine, id: `r${Date.now()}` }] })), [mutate])
+  const updateRoutine = useCallback((id, patch) => mutate((s) => ({ ...s, routines: s.routines.map((r) => (r.id === id ? { ...r, ...patch, id } : r)) })), [mutate])
+  const removeRoutine = useCallback((id) => mutate((s) => ({ routines: s.routines.filter((r) => r.id !== id), history: Object.fromEntries(Object.entries(s.history).filter(([k]) => !k.startsWith(`${id}|`))) })), [mutate])
 
   // remember which way the passenger actually travelled, and show it on the map
   const choose = useCallback((note, which) => {
@@ -40,10 +92,10 @@ export function useRoutines(sim) {
     if (!opt) return
     const hk = historyKey(note.trip.routineId, note.trip.kind)
     const entry = { key: optionKey(opt), label: `bus ${opt.legs.map((l) => l.routeId).join(' → ')} from ${opt.boardStop}`, at: Date.now() }
-    setStore((s) => ({ ...s, history: { ...s.history, [hk]: [...(s.history[hk] ?? []), entry].slice(-30) } }))
+    mutate((s) => ({ ...s, history: { ...s.history, [hk]: [...(s.history[hk] ?? []), entry].slice(-30) } }))
     setNotes((n) => n.map((x) => (x.id === note.id ? { ...x, acted: which } : x)))
     setFocus({ trip: { ...opt, destination: note.trip.to }, from: note.trip.from, token: Date.now() })
-  }, [])
+  }, [mutate])
 
   const previewTrip = useCallback((trip) => {
     fired.current.delete(trip.id)
@@ -73,11 +125,31 @@ export function useRoutines(sim) {
         key: optionKey(usual), label: `bus ${usual.legs.map((l) => l.routeId).join(' → ')} from ${usual.boardStop}`, at: Date.now() - i * 864e5,
       }))
     }
-    setStore((s) => ({ routines: [...s.routines, routine], history: { ...s.history, ...history } }))
-  }, [sim.states])
+    mutate((s) => ({ routines: [...s.routines, routine], history: { ...s.history, ...history } }))
+  }, [sim.states, mutate])
+
+  // use a sync code from another browser/device: replaces what this browser shows with the saved copy
+  const restore = useCallback(async (code) => {
+    const clean = code.trim()
+    setSyncError('')
+    if (!CODE_OK.test(clean)) { setSyncError('That code does not look right.'); return false }
+    try {
+      const j = await (await fetch(`/api/routines/${clean}`)).json()
+      if (!j.found) { setSyncError('No saved routines found for that code.'); return false }
+      setUserId(clean)
+      setStore({ ...j.data, updatedAt: j.updatedAt })
+      pushed.current = j.updatedAt
+      ready.current = true
+      setUser(clean)
+      return true
+    } catch {
+      setSyncError('Cannot reach the server right now.')
+      return false
+    }
+  }, [])
 
   const dismiss = useCallback((id) => setNotes((n) => n.filter((x) => x.id !== id)), [])
-  const clearAll = useCallback(() => setStore({ routines: [], history: {} }), [])
+  const clearAll = useCallback(() => mutate(() => ({ routines: [], history: {} })), [mutate])
 
-  return { store, trips, notes, focus, addRoutine, removeRoutine, choose, previewTrip, loadDemo, dismiss, clearAll, DAYS }
+  return { store, trips, notes, focus, userId, sync, syncError, addRoutine, updateRoutine, removeRoutine, choose, previewTrip, loadDemo, restore, dismiss, clearAll, DAYS }
 }

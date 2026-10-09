@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "dev:web": "vite",
-    "dev:api": "node server/index.js"
+    "dev:api": "node server/index.js",
+    "start": "node server/index.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -33,5 +34,8 @@
     "postcss": "^8.5.29",
     "tailwindcss": "^3.4.19",
     "vite": "^8.3.0"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }
