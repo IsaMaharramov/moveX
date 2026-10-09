@@ -35,6 +35,12 @@ export const stops = [
   { id: 'heydar', name: 'Heydar Aliyev Center', lat: 40.3965, lon: 49.8665, pop: 0.3 },
   { id: 'icheri', name: 'Icherisheher', lat: 40.3661, lon: 49.835, pop: 0.7 },
   { id: 'khatai', name: 'Khatai Metro', lat: 40.3826, lon: 49.8715, pop: 0.6 },
+  { id: 'yanvar20', name: '20 Yanvar Metro', lat: 40.4048, lon: 49.8085, pop: 0.7 },
+  { id: 'memar', name: 'Memar Ajami', lat: 40.411, lon: 49.814, pop: 0.5 },
+  { id: 'genclik', name: 'Genclik Mall', lat: 40.3999, lon: 49.8452, pop: 0.6 },
+  { id: 'fountain', name: 'Fountain Square', lat: 40.3727, lon: 49.8352, pop: 0.8 },
+  { id: 'portbaku', name: 'Port Baku (Boulevard)', lat: 40.3685, lon: 49.848, pop: 0.7 },
+  { id: 'flagsq', name: 'Flag Square', lat: 40.3578, lon: 49.8586, pop: 0.4 },
 ]
 export const stopById = Object.fromEntries(stops.map((s) => [s.id, s]))
 
@@ -46,6 +52,24 @@ export const routes = [
   { id: '65', color: '#ec4899', stopIds: ['ganjlik', 'may28', 'icheri'] },
   { id: '30', color: '#84cc16', stopIds: ['narimanov', 'khatai', 'may28'] },
   { id: '6', color: '#eab308', stopIds: ['elmler', 'nizami', 'icheri'] },
+  { id: '3', color: '#06b6d4', stopIds: ['yanvar20', 'memar', 'genclik', 'ganjlik'] },
+  { id: '18', color: '#f43f5e', stopIds: ['nizami', 'fountain', 'sahil', 'portbaku', 'flagsq', 'crystal'] },
+]
+
+// Named places passengers can ask to go to (not always a bus stop).
+export const places = [
+  { id: 'port_baku', name: 'Port Baku Mall', aliases: ['port baku', 'portbaku'], lat: 40.3688, lon: 49.8485 },
+  { id: 'boulevard', name: 'Baku Boulevard', aliases: ['boulevard', 'bulvar', 'seaside'], lat: 40.3715, lon: 49.8445 },
+  { id: 'flag_square', name: 'National Flag Square', aliases: ['flag square', 'bayraq'], lat: 40.3572, lon: 49.8603 },
+  { id: 'fountain_sq', name: 'Fountain Square', aliases: ['fountain', 'fountains'], lat: 40.3722, lon: 49.8358 },
+  { id: 'old_city', name: 'Old City (Icherisheher)', aliases: ['old city', 'icherisheher', 'maiden tower', 'qiz qalasi'], lat: 40.3659, lon: 49.8372 },
+  { id: 'genclik_mall', name: 'Genclik Mall', aliases: ['genclik', 'gencliyin'], lat: 40.4002, lon: 49.8449 },
+  { id: 'stadium_venue', name: 'Tofiq Bahramov Stadium', aliases: ['stadium', 'stadion', 'tofiq bahramov', 'football'], lat: 40.3956, lon: 49.853 },
+  { id: 'crystal_hall', name: 'Baku Crystal Hall', aliases: ['crystal hall', 'crystal'], lat: 40.3452, lon: 49.857 },
+  { id: 'heydar_center', name: 'Heydar Aliyev Center', aliases: ['heydar aliyev center', 'heydar center', 'heydar aliyev merkezi'], lat: 40.3959, lon: 49.8678 },
+  { id: 'bsu', name: 'Baku State University', aliases: ['bsu', 'baku state', 'university', 'bdu'], lat: 40.3747, lon: 49.8162 },
+  { id: 'nizami_street', name: 'Nizami Street (shopping)', aliases: ['nizami street', 'torgovaya', 'nizami kucesi'], lat: 40.3795, lon: 49.8335 },
+  { id: 'dede_qorqud', name: '20 Yanvar / Dede Qorqud Park', aliases: ['20 yanvar', 'dede qorqud', 'bus station'], lat: 40.4052, lon: 49.8092 },
 ]
 export const BASE_BUSES = 3
 export const BASE_HEADWAY = 12 // minutes between buses with no extras
@@ -201,6 +225,14 @@ export function recommendFor(ev) {
 // ---------- buses ----------
 const hash = (str) => [...str].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 7)
 
+// Buses on a route: base fleet evenly spread, extra buses slotted in between. Shared with the timetable.
+export function busUnits(L, extra) {
+  return [
+    ...Array.from({ length: BASE_BUSES }, (_, i) => ({ i, offset: (i * 2 * L) / BASE_BUSES, extra: false })),
+    ...Array.from({ length: extra }, (_, j) => ({ i: BASE_BUSES + j, offset: 2 * L * ((0.17 + 0.29 * j) % 1), extra: true })),
+  ]
+}
+
 export function computeBuses(t, extras, paths, stopAlong, states) {
   const stateById = Object.fromEntries(states.map((s) => [s.stop.id, s]))
   const buses = []
@@ -208,10 +240,7 @@ export function computeBuses(t, extras, paths, stopAlong, states) {
     const path = paths[r.id]
     const L = path.total
     const extra = extraCount(extras, r.id)
-    const units = [
-      ...Array.from({ length: BASE_BUSES }, (_, i) => ({ i, offset: (i * 2 * L) / BASE_BUSES, extra: false })),
-      ...Array.from({ length: extra }, (_, j) => ({ i: BASE_BUSES + j, offset: 2 * L * ((0.17 + 0.29 * j) % 1), extra: true })),
-    ]
+    const units = busUnits(L, extra)
     for (const u of units) {
       const d = (u.offset + t * BUS_SPEED) % (2 * L)
       const along = d < L ? d : 2 * L - d

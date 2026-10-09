@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Marker, Polyline, Circle, Tooltip, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
-import { LEVEL_COLOR, routes, events, eventLoad } from '../data/mockEngine'
+import { LEVEL_COLOR, routes, events, eventLoad, places, stopById, pointAt } from '../data/mockEngine'
 
 const cache = new Map()
 function icon(key, html, size) {
@@ -137,5 +137,73 @@ export function PinMarker({ position, onDrag }) {
     >
       <Tooltip direction="top" offset={[0, -16]}>You are here (drag me)</Tooltip>
     </Marker>
+  )
+}
+
+// Dashed rings around stops that the latest AI plan marks as affected.
+export function AiRings({ states, routeIds }) {
+  if (!routeIds?.length) return null
+  return states
+    .filter((s) => s.serving.some((r) => routeIds.includes(r)))
+    .map((s) => (
+      <Circle key={s.stop.id} center={[s.stop.lat, s.stop.lon]} radius={230}
+        pathOptions={{ color: '#6366f1', weight: 2, dashArray: '5 6', fillColor: '#6366f1', fillOpacity: 0.06 }} interactive={false} />
+    ))
+}
+
+// ---- Passenger trip planning layers ----
+const emoji = (e, size = 26) => icon(`emoji-${e}`, `<div style="font-size:${size}px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))">${e}</div>`, [size + 4, size + 4])
+
+export function PoiMarkers({ onPick }) {
+  return places.map((p) => (
+    <Marker key={p.id} position={[p.lat, p.lon]} icon={icon('poi', '<div style="width:12px;height:12px;border-radius:3px;background:#6366f1;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5)"></div>', [12, 12])} eventHandlers={{ click: () => onPick?.(p) }}>
+      <Tooltip direction="top" offset={[0, -6]}>📍 {p.name}</Tooltip>
+    </Marker>
+  ))
+}
+
+function sliceRoute(path, d1, d2) {
+  const lo = Math.min(d1, d2)
+  const hi = Math.max(d1, d2)
+  const mid = path.pts.filter((_, i) => path.cum[i] > lo && path.cum[i] < hi)
+  const line = [pointAt(path, lo), ...mid, pointAt(path, hi)]
+  return d1 <= d2 ? line : line.reverse()
+}
+
+export function FitTo({ points, token }) {
+  const map = useMap()
+  useEffect(() => {
+    if (points?.length > 1) map.fitBounds(points, { padding: [60, 60], maxZoom: 16, duration: 0.9 })
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+
+export function TripLayer({ trip, pos, paths, stopAlong }) {
+  if (!trip || trip.noRoute || !trip.legs) return null
+  const board = stopById[trip.boardStopId]
+  const alight = stopById[trip.alightStopId]
+  const dest = [trip.destination.lat, trip.destination.lon]
+  return (
+    <>
+      <Polyline positions={[pos, [board.lat, board.lon]]} pathOptions={{ color: '#2563eb', weight: 5, dashArray: '2 9', lineCap: 'round' }} interactive={false} />
+      {trip.legs.map((l) => {
+        const color = routes.find((r) => r.id === l.routeId).color
+        const line = sliceRoute(paths[l.routeId], stopAlong[l.routeId][l.fromStopId], stopAlong[l.routeId][l.toStopId])
+        return (
+          <span key={l.routeId + l.fromStopId}>
+            <Polyline positions={line} pathOptions={{ color: '#fff', weight: 11, opacity: 0.9 }} interactive={false} />
+            <Polyline positions={line} pathOptions={{ color, weight: 7, opacity: 1 }} interactive={false} />
+          </span>
+        )
+      })}
+      <Polyline positions={[[alight.lat, alight.lon], dest]} pathOptions={{ color: '#2563eb', weight: 5, dashArray: '2 9', lineCap: 'round' }} interactive={false} />
+      {trip.transfer && (
+        <Marker position={[stopById[trip.transfer.stopId].lat, stopById[trip.transfer.stopId].lon]} icon={emoji('🔄', 22)} zIndexOffset={900}>
+          <Tooltip direction="top" offset={[0, -10]} permanent>Change to {trip.transfer.routeId}</Tooltip>
+        </Marker>
+      )}
+      <Marker position={[alight.lat, alight.lon]} icon={emoji('⬇️', 22)} zIndexOffset={900}><Tooltip direction="top" offset={[0, -10]} permanent>Get off: {alight.name}</Tooltip></Marker>
+      <Marker position={dest} icon={emoji('🏁', 30)} zIndexOffset={900}><Tooltip direction="top" offset={[0, -14]} permanent>{trip.destination.name}</Tooltip></Marker>
+    </>
   )
 }

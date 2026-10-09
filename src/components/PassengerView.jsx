@@ -1,17 +1,27 @@
 import { useMemo, useState } from 'react'
 import { MapContainer, Polyline } from 'react-leaflet'
 import { MapPin, Footprints, AlertTriangle, CheckCircle2, Navigation, Clock, Bus } from 'lucide-react'
-import { HeatCircles, StopMarkers, BusMarkers, FlyTo, ClickToSet, PinMarker, EventMarkers, RouteLines, BaseTiles } from './MapLayers'
+import { HeatCircles, StopMarkers, BusMarkers, FlyTo, ClickToSet, PinMarker, EventMarkers, RouteLines, BaseTiles, AiRings, PoiMarkers, TripLayer, FitTo } from './MapLayers'
 import CrowdBadge from './CrowdBadge'
-import { walkMinutes, haversine, routes } from '../data/mockEngine'
+import AiAlertBanner from './AiAlertBanner'
+import TripChat from './TripChat'
+import { buildGeometry } from '../data/timetable'
+import { walkMinutes, haversine, routes, computeStopAlong, stopById } from '../data/mockEngine'
 
 const routeColor = Object.fromEntries(routes.map((r) => [r.id, r.color]))
 
-export default function PassengerView({ sim, buses, paths, focus }) {
+export default function PassengerView({ sim, buses, paths, focus, intel }) {
   const { states, t } = sim
   const [pos, setPos] = useState([40.3968, 49.8532])
   const [target, setTarget] = useState(null)
   const [navigating, setNavigating] = useState(false)
+  const [trip, setTrip] = useState(null)
+  const [tripToken, setTripToken] = useState(0)
+  const stopAlong = useMemo(() => computeStopAlong(paths), [paths])
+  const geometry = useMemo(() => buildGeometry(paths, stopAlong), [paths, stopAlong])
+  const [ttRoute, setTtRoute] = useState(null)
+  const showTrip = (tr, routeId) => { setTrip(tr); setTtRoute(routeId ?? null); setTripToken((n) => n + 1) }
+  const tripPoints = ttRoute ? paths[ttRoute].pts.filter((_, i) => i % 6 === 0) : trip && !trip.noRoute ? [pos, [stopById[trip.boardStopId].lat, stopById[trip.boardStopId].lon], [stopById[trip.alightStopId].lat, stopById[trip.alightStopId].lon], [trip.destination.lat, trip.destination.lon]] : null
 
   const options = useMemo(() => {
     const me = { lat: pos[0], lon: pos[1] }
@@ -29,11 +39,15 @@ export default function PassengerView({ sim, buses, paths, focus }) {
   const alt = best && current && best.stop.id !== current.stop.id && best.total < current.total ? best : null
   const crowded = current && current.level !== 'Low'
 
-  const pick = (p) => { setPos(p); setNavigating(false) }
+  const pick = (p) => { setPos(p); setNavigating(false); setTrip(null); setTtRoute(null) }
 
   return (
     <div className="grid h-[calc(100vh-64px)] min-h-[600px] grid-cols-1 lg:grid-cols-[430px_1fr]">
       <aside className="min-h-0 space-y-4 overflow-y-auto bg-slate-50 p-4">
+        <AiAlertBanner plan={intel?.data?.plan} />
+
+        <TripChat sim={sim} pos={pos} onTrip={showTrip} geometry={geometry} />
+
         <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
           <MapPin className="mr-1 inline h-4 w-4 text-blue-600" />
           Drag the pin or tap the map to set where you are. Everything updates live.
@@ -116,12 +130,16 @@ export default function PassengerView({ sim, buses, paths, focus }) {
           <BaseTiles />
           <FlyTo target={target} />
           <FlyTo target={focus} />
-          <RouteLines paths={paths} activeRoutes={[...(current?.serving ?? []), ...(alt?.serving ?? [])]} />
+          <AiRings states={states} routeIds={intel?.data?.plan?.affected_routes} />
+          <RouteLines paths={paths} activeRoutes={ttRoute ? [ttRoute] : [...(current?.serving ?? []), ...(alt?.serving ?? [])]} />
           <ClickToSet onPick={pick} />
           <HeatCircles states={states} />
           <EventMarkers t={t} />
           <StopMarkers labels states={states} selectedId={alt?.stop.id ?? current?.stop.id} />
           <BusMarkers buses={buses} />
+          <PoiMarkers />
+          <TripLayer trip={trip} pos={pos} paths={paths} stopAlong={stopAlong} />
+          <FitTo points={tripPoints} token={tripToken} />
           <PinMarker position={pos} onDrag={pick} />
           {navigating && alt && <Polyline positions={[pos, [alt.stop.lat, alt.stop.lon]]} pathOptions={{ color: '#2563eb', weight: 5, dashArray: '2 10', lineCap: 'round' }} />}
         </MapContainer>
