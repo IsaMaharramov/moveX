@@ -1,0 +1,10 @@
+@import 'leaflet/dist/leaflet.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { margin: 0; font-family: system-ui, sans-serif; }
+.bus-icon { transition: none; }
+.leaflet-marker-icon { transition: transform 0.2s linear; }
+.leaflet-zoom-anim .leaflet-marker-icon { transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1); }
+.leaflet-tooltip { font-size: 12px; line-height: 1.35; }
